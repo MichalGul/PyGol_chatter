@@ -1,6 +1,7 @@
 import pika
 import sys
 import os
+import json
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
@@ -19,24 +20,32 @@ def prepare_connection():
 
 
 def callback(ch, method, properties, body):
-    print(f" [x] Received {body.decode()}")
+    try:
+        message_dict = json.loads(body.decode())
+        print(f" [x] Received message: {message_dict}")
 
-    # todo process message here unmarshalling, calling LLM, etc.
-    # here we would send reply back to golang to queue q.gol.to.py
+        # Access specific fields in the dictionary
+        conversation_id = message_dict.get("conversation_id")
+        turn = message_dict.get("turn")
+        message = message_dict.get("message")
 
-    # Orchestrator should handle replies and end of conversation logic
-    # reply = f"Pong from Python to: {body.decode()}"
-    # ch.basic_publish(exchange='', routing_key='pygol_queue', body=reply.encode(),
-    #                  properties=pika.BasicProperties(delivery_mode=pika.DeliveryMode.Persistent))
-    ch.basic_ack(delivery_tag=method.delivery_tag)
+        print(f"Conversation ID: {conversation_id}, Turn: {turn}, Message: {message}")
+
+        # todo handle message properly, probably pass message to orchestrator or LLM handler
+        # or parse to some queue where llm will get and send response to producer
+        # here we would send reply back to golang to queue q.gol.to.py
+
+        # Orchestrator should handle replies and end of conversation logic
+        # reply = f"Pong from Python to: {body.decode()}"
+        # ch.basic_publish(exchange='', routing_key='pygol_queue', body=reply.encode(),
+        #                  properties=pika.BasicProperties(delivery_mode=pika.DeliveryMode.Persistent))
+        
+        # when turns are over we should send some end signal or message
 
 
-if __name__ == "__main__":
-    print("Starting Python consumer...")
-    channel, connection = prepare_connection()
-
-
-    channel.basic_qos(prefetch_count=1)
-    channel.basic_consume(queue=QueueGolToPy, on_message_callback=callback)
-    print(' [*] Waiting for messages...')
-    channel.start_consuming()
+    except json.JSONDecodeError as e:
+        print(f" [!] Error decoding JSON message: {e}")
+        return
+    
+    finally:
+        ch.basic_ack(delivery_tag=method.delivery_tag)

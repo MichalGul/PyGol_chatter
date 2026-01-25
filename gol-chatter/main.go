@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"encoding/json"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -23,6 +24,32 @@ const RoutingKeyGolToPy = "gol.to.py"
 
 const QueuePyToGol = "q.py.to.gol"
 const QueueGolToPy = "q.gol.to.py"
+
+
+// Define a struct to match the JSON message structure
+type Message struct {
+    ConversationID string `json:"conversation_id"`
+    Turn           int    `json:"turn"`
+    MaxTurns       int    `json:"max_turns"`
+    Sender         string `json:"sender"`
+    Message        string `json:"message"`
+}
+
+func handleMessage(body []byte) (Message, error) {
+	// Here you would unmarshal the JSON and process the message
+	var msg Message
+	err := json.Unmarshal(body, &msg)
+	if err != nil {
+		log.Printf("Error unmarshalling message: %v", err)
+		return Message{}, err
+	}
+
+	// Process the message (for now, just print it)
+	log.Printf("Processing message from %s: %s (Turn %d/%d)", msg.Sender, msg.Message, msg.Turn, msg.MaxTurns)
+
+	return msg, nil
+}
+
 
 // Todo move to internal module
 func declareAndBindQueue(
@@ -88,14 +115,26 @@ func main() {
 		defer channel.Close()
 
 		for msg := range deliveryChannel {
-			log.Printf(" [x] Received %s", msg.Body)
+
+			structMessage, _ := handleMessage(msg.Body)
 			// TODO : process message here unmarshalling, calling LLM, etc.
 
 			// todo send reply back to python bo to queue q.gol.to.py
+			
+			structMessage.Message = "Go is responding nicely, increasing turn number"
+			structMessage.Sender = "golang"
+			structMessage.Turn += 1
+
+			responseBody, err := json.Marshal(structMessage)
+			
+			if err != nil {
+				fmt.Printf("error marshalling response message: %v\n", err)
+				return err
+			}
 
 			response_msg := amqp.Publishing{
-				ContentType: "text/plain",
-				Body: []byte("Hello from Go: " + string(msg.Body)),
+				ContentType: "application/json",
+				Body: responseBody,
 				DeliveryMode: amqp.Persistent,
 			} 
 			

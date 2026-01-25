@@ -1,9 +1,16 @@
 import pika
 import uuid
 import time
-
+import json
 # create class from this Require interface for message parsing and connection maintaining
 
+MESSAGE_SCHEMA = {
+  "conversation_id": "test123",
+  "turn": 1,
+  "max_turns": 10,
+  "sender": "python",
+  "message": "Hello from Python"
+}
 
 def prepare_connection():
     credentials = pika.PlainCredentials('guest', 'guest') # todo move to ENV
@@ -20,11 +27,20 @@ def prepare_connection():
 
 # probably 2 queues one for send and 1 for recieve from golang
 def send_message(channel, message_number=0):
-    message=f"Hello from Python!: {message_number}" # Message should be JSON with turn number
+    
+    message = MESSAGE_SCHEMA.copy()
+    message["turn"] = message_number
+    message["message"] = f"Hello from Python! This is message number {message_number}"
+
+    message_json = json.dumps(message)
+
     channel.basic_publish(exchange='llm.dialog.exchange',
                             routing_key='q.py.to.gol',
-                            body=message.encode(),
-                            properties=pika.BasicProperties(delivery_mode=pika.DeliveryMode.Persistent)
+                            body=message_json,
+                            properties=pika.BasicProperties(
+                                delivery_mode=pika.DeliveryMode.Persistent,
+                                content_type='application/json'
+                            )
                           )
 
 

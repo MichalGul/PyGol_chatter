@@ -1,4 +1,4 @@
-module gol-chatter
+module github.com/MichalGul/PyGol/PyGol_chatter/gol-chatter
 
 go 1.23.4
 

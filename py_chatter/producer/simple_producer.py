@@ -52,3 +52,22 @@ def send_messages_every(rabbit_connection: pika.BlockingConnection, rabbit_chann
         time.sleep(timeout)
 
     rabbit_connection.close()
+
+
+def send_single_message(rabbit_channel, message: str, message_number=0):
+    message_json = json.dumps({
+        "conversation_id": "test123",
+        "turn": message_number,
+        "max_turns": 10,
+        "sender": "python",
+        "message": message
+    })
+
+    rabbit_channel.basic_publish(exchange='llm.dialog.exchange',
+                            routing_key='q.py.to.gol',
+                            body=message_json,
+                            properties=pika.BasicProperties(
+                                delivery_mode=pika.DeliveryMode.Persistent,
+                                content_type='application/json'
+                            )
+                          )

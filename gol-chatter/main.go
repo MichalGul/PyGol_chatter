@@ -75,7 +75,9 @@ func main() {
 		log.Fatal(err)
 	}
 
+
 	// Start subscribing to the queue with a handler function
+	// It runs goroutine that processes messages as they arrive
 	err = pubsub.SubscribeToQueueJSON[conversationlogic.Message](
 		conn,
 		routing.ExchangePyGol,

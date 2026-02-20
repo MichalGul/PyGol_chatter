@@ -38,11 +38,6 @@ func main() {
 	}
 	amqpURL := os.Getenv("RABBITMQ_URL")
 
-	llmAPIKey := os.Getenv("OPENAI_API_KEY")
-	if llmAPIKey == "" {
-		log.Printf("Warning: OPENAI_API_KEY not set in environment variables. LLM integration will not work.")
-	}
-
 	if amqpURL == "" {
 		log.Fatalf("RabbitMQ URL not set in environment variable RABBITMQ_URL. Exit.")
 	}
@@ -56,9 +51,34 @@ func main() {
 	conversationState := conversationlogic.NewConversationState("conv1", "Gol-chatter", 10)
 	fmt.Printf("Initialized conversation state: %+v\n", conversationState)
 
-	// TODO interface for client types
-	llmClient := llmclient.CreateClient(llmAPIKey)
-	fmt.Printf("Initialized llm OpenAI client: %+v\n", llmClient)
+
+    // Use the interface to get a response
+    var llm llmclient.LLMClient
+
+	llmType := os.Getenv("LMM_CLIENT_TYPE")
+	if llmType == "" {
+		log.Printf("Warning: LMM_CLIENT_TYPE not set in environment variables. Defaulting to openai.")
+		llmType = "openai"
+	}
+
+	if llmType == "openai" {
+		log.Printf("Using OpenAI as LLM client.")
+
+		llmAPIKey := os.Getenv("OPENAI_API_KEY")
+		if llmAPIKey == "" {
+			log.Printf("Warning: OPENAI_API_KEY not set in environment variables. LLM integration will not work.")
+		}
+
+		// TODO interface for client types
+		llmClient := llmclient.CreateNewOpenAIClient(llmAPIKey)
+		fmt.Printf("Initialized llm OpenAI client: \n")
+		llm = llmClient
+
+	} else { // todo add more LLM clients as needed
+		log.Printf("Error: Unsupported LLM_CLIENT_TYPE '%s'. No LLM integration will be available.", llmType)
+	}
+
+
 
 
 	// Declare queue to consume from python todo not sure if this requred?
@@ -104,7 +124,7 @@ func main() {
 		routing.QueuePyToGol,
 		routing.RoutingKeyPyToGol,
 		pubsub.SimpleQueueDurable,
-		handleMessageLLMResponse(conversationState, channel, llmClient),
+		handleMessageLLMResponse(conversationState, channel, llm),
 	)
 
 

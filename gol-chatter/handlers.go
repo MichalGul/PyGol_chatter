@@ -10,7 +10,6 @@ import (
 	"github.com/MichalGul/PyGol/PyGol_chatter/gol-chatter/internal/routing"
 	"github.com/MichalGul/PyGol/PyGol_chatter/gol-chatter/internal/pubsub"
 	"github.com/MichalGul/PyGol/PyGol_chatter/gol-chatter/internal/llmclient"
-	"github.com/openai/openai-go/v3"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -94,23 +93,25 @@ func handleMessageManualResponse(convState *conversationlogic.ConversationState,
 }
 
 
-func handleMessageLLMResponse(convState *conversationlogic.ConversationState, channel *amqp.Channel, client *openai.Client) func(conversationlogic.Message) error {
+func handleMessageLLMResponse(convState *conversationlogic.ConversationState, channel *amqp.Channel, client llmclient.LLMClient) func(conversationlogic.Message) error {
 	return func(msg conversationlogic.Message) error {
-				convState.UpdateTurn(msg.Turn)
+		
+		convState.UpdateTurn(msg.Turn)
 		convState.IncrementTurn()
 		log.Printf("Processing message from %s: %s (Turn %d/%d)", msg.Sender, msg.Message, msg.Turn, msg.MaxTurns)
 
 		fmt.Printf("Message from py_chatter: %s\n", msg.Message)
 
 		// Get response from LLM, todo give message turn to llm
-		llmResponse, err := llmclient.GetLLMSimpleResponse(client, msg.Message)
+		llmResponse, err := client.GetLLMSimpleResponse(msg.Message)
+
 		if err != nil {
 			log.Printf("Error getting response from LLM: %v", err)
 			llmResponse = "Error getting response from LLM"
 		}
 
 		responseMessage := conversationlogic.Message{
-			ConversationID: msg.ConversationID,
+			ConversationID: msg.ConversationID, // here we should pass conversation id from llm
 			Turn:           convState.CurrentTurn,
 			MaxTurns:       msg.MaxTurns,
 			Sender:         convState.Actor,

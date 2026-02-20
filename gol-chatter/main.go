@@ -10,6 +10,7 @@ import (
 	"github.com/MichalGul/PyGol/PyGol_chatter/gol-chatter/internal/conversationlogic"
 	"github.com/MichalGul/PyGol/PyGol_chatter/gol-chatter/internal/pubsub"
 	"github.com/MichalGul/PyGol/PyGol_chatter/gol-chatter/internal/routing"
+	"github.com/MichalGul/PyGol/PyGol_chatter/gol-chatter/internal/llmclient"
 
 	"github.com/joho/godotenv"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -37,6 +38,11 @@ func main() {
 	}
 	amqpURL := os.Getenv("RABBITMQ_URL")
 
+	llmAPIKey := os.Getenv("OPENAI_API_KEY")
+	if llmAPIKey == "" {
+		log.Printf("Warning: OPENAI_API_KEY not set in environment variables. LLM integration will not work.")
+	}
+
 	if amqpURL == "" {
 		log.Fatalf("RabbitMQ URL not set in environment variable RABBITMQ_URL. Exit.")
 	}
@@ -49,6 +55,11 @@ func main() {
 
 	conversationState := conversationlogic.NewConversationState("conv1", "Gol-chatter", 10)
 	fmt.Printf("Initialized conversation state: %+v\n", conversationState)
+
+	// TODO interface for client types
+	llmClient := llmclient.CreateClient(llmAPIKey)
+	fmt.Printf("Initialized llm OpenAI client: %+v\n", llmClient)
+
 
 	// Declare queue to consume from python todo not sure if this requred?
 	channel, _, err := pubsub.DeclareAndBindQueue(
@@ -78,13 +89,22 @@ func main() {
 
 	// Start subscribing to the queue with a handler function
 	// It runs goroutine that processes messages as they arrive
-	err = pubsub.SubscribeToQueueJSON[conversationlogic.Message](
+	// err = pubsub.SubscribeToQueueJSON[conversationlogic.Message](
+	// 	conn,
+	// 	routing.ExchangePyGol,
+	// 	routing.QueuePyToGol,
+	// 	routing.RoutingKeyPyToGol,
+	// 	pubsub.SimpleQueueDurable,
+	// 	handleMessageManualResponse(conversationState, channel),
+	// )
+
+		err = pubsub.SubscribeToQueueJSON[conversationlogic.Message](
 		conn,
 		routing.ExchangePyGol,
 		routing.QueuePyToGol,
 		routing.RoutingKeyPyToGol,
 		pubsub.SimpleQueueDurable,
-		handleMessageManualResponse(conversationState, channel),
+		handleMessageLLMResponse(conversationState, channel, llmClient),
 	)
 
 
